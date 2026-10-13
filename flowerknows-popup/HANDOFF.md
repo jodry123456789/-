@@ -1,7 +1,13 @@
 # 플라워노즈 성수 팝업 인스타 카드뉴스: 작업 인수인계
 
-> 새 세션에서 Claude에게 "flowerknows-popup/HANDOFF.md 읽고 이어서 해줘"라고 하면 됩니다.
+> 새 세션에서 Claude에게 "바탕화면의 HANDOFF.md 읽고 이어서 해줘"라고 하면 됩니다.
 > 클라우드 세션(2026-10-13)에서 하던 작업을 PC 로컬 세션으로 옮기기 위한 문서입니다.
+
+## 0. 새 세션 Claude가 먼저 할 일
+- 이 문서와 같은 폴더에 `cards.html`이 있으면 그걸 이어서 수정한다.
+- 없으면 GitHub `jodry123456789/-` 저장소의 `claude/tender-pascal-1c8vva` 브랜치에서 `flowerknows-popup/` 폴더를 받는다. 여기에 `cards.html`, `fonts/`, `out/`, `render.js`가 있다.
+  - 받기 어려우면 아래 3·4절 기준대로 `cards.html`을 새로 만들어도 된다. 폰트는 npm에서 `npm pack pretendard@1.3.9 @fontsource/cormorant-garamond@5.0.13`으로 받을 수 있다.
+- 사용자에게 드라이브에서 받은 이미지 폴더 위치(바탕화면 하위 폴더)를 확인하고 5절 순서대로 진행한다.
 
 ## 1. 사용자 정보와 요청 방식
 - 학생. VS Code를 주로 씀. 줄임말은 풀어서 설명하고, 불필요한 말은 빼고 핵심만 전달할 것.
