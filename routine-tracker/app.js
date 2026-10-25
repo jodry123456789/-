@@ -17,6 +17,7 @@ const DEFAULT_ROUTINES = [
 const today = new Date();
 const state = { year: today.getFullYear(), month: today.getMonth() }; // month: 0 = 1월
 let db = loadDb();
+let shared = null; // 공유 링크로 열었을 때의 기록 (보기 전용)
 
 const $ = (sel) => document.querySelector(sel);
 const table = $('#tracker');
@@ -32,6 +33,7 @@ function loadDb() {
 }
 
 function saveDb() {
+  if (shared) return;
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
   } catch {
@@ -75,6 +77,7 @@ function dayClasses(d) {
 
 // 처음 여는 달은 가장 최근 달의 루틴 목록을 그대로 가져옵니다.
 function getMonthData() {
+  if (shared) return shared.data;
   const key = monthKey(state.year, state.month);
   if (!db[key]) {
     const prev = Object.keys(db).filter((k) => k < key && db[k].routines.length).sort().pop();
@@ -119,7 +122,8 @@ function computeStats(data, year, month) {
 // ===== 화면 그리기 =====
 function render() {
   $('#yearLabel').textContent = `${state.year}년`;
-  $('#monthTitle').textContent = `${state.year}년 ${state.month + 1}월 루틴`;
+  $('#monthTitle').textContent = `${state.year}년 ${state.month + 1}월 루틴${shared ? ' · 공유됨' : ''}`;
+  document.title = `${$('#monthTitle').textContent} | 루틴 트래커`;
   renderTable();
   updateStats();
 }
@@ -145,13 +149,14 @@ function renderTable() {
     `<th class="${dayClasses(d)}">${WEEKDAYS[new Date(state.year, state.month, d).getDay()]}</th>`).join('');
   const dateHead = dayList.map((d) => `<th class="${dayClasses(d)}">${d}</th>`).join('');
 
+  const lock = shared ? ' disabled' : '';
   const rows = data.routines.map((r) => `
     <tr data-rid="${r.id}">
       <th class="name-col"><div class="name-cell">
-        <input class="routine-name" value="${escapeHtml(r.name)}" maxlength="30" placeholder="루틴 이름" aria-label="루틴 이름">
-        <button class="del" title="루틴 삭제" aria-label="루틴 삭제">×</button>
+        <input class="routine-name" value="${escapeHtml(r.name)}" maxlength="30" placeholder="루틴 이름" aria-label="루틴 이름"${shared ? ' readonly' : ''}>
+        ${shared ? '' : '<button class="del" title="루틴 삭제" aria-label="루틴 삭제">×</button>'}
       </div></th>
-      ${dayList.map((d) => `<td class="${dayClasses(d)}"><input type="checkbox" class="check" data-day="${d}"${data.checks[r.id]?.[d] ? ' checked' : ''} aria-label="${d}일"></td>`).join('')}
+      ${dayList.map((d) => `<td class="${dayClasses(d)}"><input type="checkbox" class="check" data-day="${d}"${data.checks[r.id]?.[d] ? ' checked' : ''}${lock} aria-label="${d}일"></td>`).join('')}
       <td class="an analysis-start">${days}</td>
       <td class="an done"></td>
       <td class="an left"></td>
@@ -159,14 +164,14 @@ function renderTable() {
     </tr>`).join('');
 
   const full = data.routines.length >= MAX_ROUTINES;
-  const addRow = `<tr><th class="name-col"><button class="add-btn"${full ? ' disabled' : ''}>${full ? `최대 ${MAX_ROUTINES}개` : '+ 루틴 추가'}</button></th><td colspan="${days + 4}"></td></tr>`;
+  const addRow = shared ? '' : `<tr><th class="name-col"><button class="add-btn"${full ? ' disabled' : ''}>${full ? `최대 ${MAX_ROUTINES}개` : '+ 루틴 추가'}</button></th><td colspan="${days + 4}"></td></tr>`;
 
   const condRows = CONDITIONS.map((c) => `
     <tr data-cond="${c.key}">
       <th class="name-col">${c.label}<small>칸을 누르면 1→5</small></th>
       ${dayList.map((d) => {
         const v = data[c.key][d];
-        return `<td class="${dayClasses(d)}"><button class="cond" data-day="${d}"${v ? ` data-v="${v}"` : ''} aria-label="${d}일 ${c.label}">${v || ''}</button></td>`;
+        return `<td class="${dayClasses(d)}"><button class="cond" data-day="${d}"${v ? ` data-v="${v}"` : ''}${lock} aria-label="${d}일 ${c.label}">${v || ''}</button></td>`;
       }).join('')}
       <td class="cond-avg analysis-start" colspan="4"></td>
     </tr>`).join('');
@@ -288,6 +293,77 @@ function renderCondition(data, days) {
     + (hasData ? '' : '<div class="empty-msg">표 아래 기분·에너지 칸을 눌러 기록해 보세요</div>');
 }
 
+// ===== 공유 링크 =====
+// 이번 달 기록을 주소의 # 뒤에 담습니다. # 뒷부분은 서버로 전송되지 않아서 서버 없이도 공유됩니다.
+// 체크 기록은 루틴마다 "날짜별 0/1"을 숫자 하나로 묶어(비트) 짧게 만듭니다.
+function toBase64Url(text) {
+  let bin = '';
+  new TextEncoder().encode(text).forEach((b) => { bin += String.fromCharCode(b); });
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function fromBase64Url(str) {
+  const bin = atob(str.replace(/-/g, '+').replace(/_/g, '/'));
+  return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+}
+
+function buildShareUrl() {
+  const data = getMonthData();
+  const days = daysInMonth(state.year, state.month);
+  const payload = {
+    v: 1,
+    y: state.year,
+    m: state.month,
+    r: data.routines.map((r) => [
+      r.name,
+      Object.keys(data.checks[r.id] || {}).reduce((n, d) => n + 2 ** (Number(d) - 1), 0).toString(36),
+    ]),
+    c: CONDITIONS.map((c) => Array.from({ length: days }, (_, i) => data[c.key][i + 1] || 0).join('')),
+  };
+  return `${location.href.split('#')[0]}#share=${toBase64Url(JSON.stringify(payload))}`;
+}
+
+function readSharedFromHash() {
+  const match = location.hash.match(/^#share=([\w-]+)$/);
+  if (!match) return null;
+  try {
+    const p = JSON.parse(fromBase64Url(match[1]));
+    const valid = p.v === 1 && Number.isInteger(p.y) && Number.isInteger(p.m) && p.m >= 0 && p.m < 12
+      && Array.isArray(p.r) && p.r.length <= MAX_ROUTINES && Array.isArray(p.c);
+    if (!valid) throw new Error('형식 오류');
+
+    const days = daysInMonth(p.y, p.m);
+    const data = { routines: [], checks: {} };
+    p.r.forEach(([name, bits], i) => {
+      const id = `s${i}`;
+      const n = parseInt(bits, 36) || 0;
+      data.routines.push({ id, name: String(name).slice(0, 30) });
+      data.checks[id] = {};
+      for (let d = 1; d <= days; d++) if (Math.floor(n / 2 ** (d - 1)) % 2) data.checks[id][d] = 1;
+    });
+    CONDITIONS.forEach((c, i) => {
+      data[c.key] = {};
+      [...String(p.c[i] || '')].slice(0, days).forEach((ch, idx) => {
+        const v = Number(ch);
+        if (v >= 1 && v <= CONDITION_MAX) data[c.key][idx + 1] = v;
+      });
+    });
+    return { year: p.y, month: p.m, data };
+  } catch {
+    alert('공유 링크를 읽을 수 없습니다. 링크가 중간에 잘리지 않았는지 확인해 주세요.');
+    return null;
+  }
+}
+
+let toastTimer;
+function showToast(message) {
+  const el = $('#toast');
+  el.textContent = message;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2400);
+}
+
 function scrollToToday() {
   const cell = table.querySelector('thead th.today');
   const wrap = $('.table-scroll');
@@ -374,6 +450,31 @@ $('#monthTabs').addEventListener('click', (e) => {
 $('#prevYear').addEventListener('click', () => { state.year--; render(); scrollToToday(); });
 $('#nextYear').addEventListener('click', () => { state.year++; render(); scrollToToday(); });
 
+$('#shareBtn').addEventListener('click', async () => {
+  const url = buildShareUrl();
+  const title = `${state.year}년 ${state.month + 1}월 루틴 기록`;
+  const { pct } = computeStats(getMonthData(), state.year, state.month);
+
+  // 휴대폰에서는 카카오톡 등으로 바로 보내는 공유 창을 띄웁니다.
+  if (navigator.share) {
+    try {
+      await navigator.share({ title, text: `${title} · 달성률 ${pct}%`, url });
+      return;
+    } catch (e) {
+      if (e.name === 'AbortError') return; // 사용자가 공유 창을 닫음
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast('공유 링크를 복사했어요. 원하는 곳에 붙여넣으세요.');
+  } catch {
+    prompt('아래 링크를 복사해서 보내세요.', url);
+  }
+});
+
+// 공유 링크를 주소창에 붙여넣으면 새로 읽어 들입니다.
+window.addEventListener('hashchange', () => location.reload());
+
 $('#exportBtn').addEventListener('click', () => {
   const blob = new Blob([JSON.stringify(db, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
@@ -401,5 +502,12 @@ $('#importInput').addEventListener('change', async (e) => {
   }
 });
 
+shared = readSharedFromHash();
+if (shared) {
+  state.year = shared.year;
+  state.month = shared.month;
+  document.body.classList.add('view-only');
+  $('#sharedBanner').hidden = false;
+}
 render();
 scrollToToday();
