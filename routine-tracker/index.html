@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>루틴 트래커</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wrap">
+    <header class="topbar">
+      <div class="brand">
+        <h1 id="monthTitle">루틴 트래커</h1>
+        <p>매일 체크하고, 한 달 진행률을 한눈에 확인하세요</p>
+      </div>
+      <div class="controls">
+        <div class="year" aria-label="연도 선택">
+          <button id="prevYear" class="icon-btn" aria-label="이전 연도">‹</button>
+          <span id="yearLabel"></span>
+          <button id="nextYear" class="icon-btn" aria-label="다음 연도">›</button>
+        </div>
+        <button id="exportBtn" class="btn">백업 저장</button>
+        <label class="btn">백업 불러오기<input id="importInput" type="file" accept="application/json" hidden></label>
+      </div>
+    </header>
+
+    <nav id="monthTabs" class="month-tabs" aria-label="월 선택"></nav>
+
+    <main>
+      <section class="dashboard">
+        <div class="card summary">
+          <div class="donut">
+            <svg viewBox="0 0 120 120" aria-hidden="true">
+              <defs>
+                <linearGradient id="donutGrad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" class="stop-a"></stop>
+                  <stop offset="100%" class="stop-b"></stop>
+                </linearGradient>
+              </defs>
+              <circle class="track" cx="60" cy="60" r="52"></circle>
+              <circle id="donutValue" class="value" cx="60" cy="60" r="52"></circle>
+            </svg>
+            <div class="donut-label"><strong id="donutPct">0%</strong><span>이번 달 달성률</span></div>
+          </div>
+          <dl class="stats">
+            <div><dt>목표</dt><dd id="statGoal">0</dd></div>
+            <div><dt>완료</dt><dd id="statDone">0</dd></div>
+            <div><dt>남음</dt><dd id="statLeft">0</dd></div>
+          </dl>
+        </div>
+        <div class="card wide">
+          <h2>일일 진행률 <small>그날 완료한 루틴 비율</small></h2>
+          <div id="dailyChart" class="bars dense"></div>
+        </div>
+        <div class="card">
+          <h2>주간 진행률</h2>
+          <div id="weeklyChart" class="bars"></div>
+        </div>
+      </section>
+
+      <section class="card tracker">
+        <div class="table-scroll">
+          <table id="tracker"></table>
+        </div>
+      </section>
+
+      <section class="dashboard bottom">
+        <div class="card wide">
+          <h2>컨디션 흐름
+            <span class="legend"><span><i class="mood"></i>기분</span><span><i class="energy"></i>에너지</span></span>
+          </h2>
+          <div id="conditionChart" class="line-chart"></div>
+        </div>
+        <div class="card">
+          <h2>주요 루틴 TOP 10</h2>
+          <ol id="topList" class="top-list"></ol>
+        </div>
+      </section>
+    </main>
+
+    <p class="hint">기록은 이 브라우저에 자동 저장됩니다. 다른 기기·브라우저로 옮기려면 <b>백업 저장</b> 후 <b>백업 불러오기</b>를 사용하세요.</p>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
